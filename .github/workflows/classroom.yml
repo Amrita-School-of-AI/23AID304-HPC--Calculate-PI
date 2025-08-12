@@ -1,0 +1,70 @@
+name: Autograding Tests
+on:
+  - push
+  - workflow_dispatch
+  - repository_dispatch
+permissions:
+  checks: write
+  actions: read
+  contents: read
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: [Test 1] Compiles successfully
+      uses: classroom-resources/autograding-io-grader@v1
+      with:
+        name: Compiles successfully (10 points)
+        id: test1-compiles
+        command: gcc -o pi_calculator pi_calculator.c -fopenmp -lm && echo 'Compilation successful.' || echo 'Compilation failed.' 
+        expected-output: 'Compilation successful.'
+        comparison: exact
+        timeout: 2
+        max-score: 10
+
+    - name: Runs and calculates Pi correctlygcc -o pi_calculator pi_calculator.c -fopenmp -lm && echo 'Compilation successful.' || echo 'Compilation failed.'
+      uses: classroom-resources/autograding-io-grader@v1
+      with:
+        id: test2-correctness
+        name: 2. Runs and calculates Pi correctly (40 points)
+        setup-command: gcc -o pi_calculator pi_calculator.c -fopenmp -lm
+        command: ./pi_calculator
+        expected-output: 'Calculated Pi\\s*=\\s*3\\.14159\\d*'
+        comparison: regex
+        timeout: 2
+        max-score: 40
+
+    - name: Outputs execution time
+      uses: classroom-resources/autograding-io-grader@v1
+      with: 
+        id: test3-time-output
+        name: 3. Outputs execution time (10 points)
+        command: cat pi_calculator.c 
+        expected-output: '#pragma omp parallel'
+        comparison: included
+        timeout: 1
+        max-score: 10
+
+    - name: Achieves speedup over serial version
+      uses: classroom-resources/autograding-io-grader@v1
+      with: 
+        id: test4-speedup
+        name: 4. Achieves speedup over serial version (20 points)
+        setup-command: gcc -o pi_calculator pi_calculator.c -fopenmp -lm
+        command: PARALLEL_TIME=$(./pi_calculator | grep 'Execution time' | awk '{print $3}') && INITIAL_COMMIT=$(git rev-list --max-parents=0 HEAD) && git checkout $INITIAL_COMMIT -- pi_calculator.c > /dev/null 2>&1 && gcc -fopenmp -o pi_serial pi_calculator.c -lm && SERIAL_TIME=$(./pi_serial | grep 'Execution time' | awk '{print $3}') && SPEEDUP_CHECK=$(echo $PARALLEL_TIME \< $SERIAL_TIME | bc -l) && if [ $SPEEDUP_CHECK -eq 1 ]; then echo 'Success: Parallel version is faster.'; else echo 'Failure: Parallel version is not faster.'; fi
+        expected-output: 'Success: Parallel version is faster.'
+        comparison: exact
+        timeout: 3
+        max-score: 20
+    - name: Autograding Reporter
+      uses: classroom-resources/autograding-grading-reporter@v1
+      # For more information on this runner, see the documentation at https://github.com/classroom-resources/autograding-grading-reporter
+      # To output the results of the tests, you can use the
+      # autograding-grading-reporter action like this:
+      # env:
+      # ADDITION-TEST_RESULTS: "${{ steps.addition - test.outputs.result }}"
+      #     with:
+      #         runners: addition-test
