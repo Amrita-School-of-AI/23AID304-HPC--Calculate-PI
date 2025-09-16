@@ -14,57 +14,64 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    - name: [Test 1] Compiles successfully
+      # 2. Install OMP and C++ compiler
+    - name: Set up C++ and OMP environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libomp-dev
+    
+    - name: 1. Compiles successfully
       uses: classroom-resources/autograding-io-grader@v1
+      id: compiles-successfully
       with:
-        name: Compiles successfully (10 points)
-        id: test1-compiles
+        test-name: 1. Compiles successfully (10 points)
         command: gcc -o pi_calculator pi_calculator.c -fopenmp -lm && echo 'Compilation successful.' || echo 'Compilation failed.' 
         expected-output: 'Compilation successful.'
-        comparison: exact
+        comparison-method: exact
         timeout: 2
         max-score: 10
 
-    - name: Runs and calculates Pi correctlygcc -o pi_calculator pi_calculator.c -fopenmp -lm && echo 'Compilation successful.' || echo 'Compilation failed.'
+    - name: 2. Runs and calculates Pi correctly
       uses: classroom-resources/autograding-io-grader@v1
+      id: calculates-pi-correctly
       with:
-        id: test2-correctness
-        name: 2. Runs and calculates Pi correctly (40 points)
+        test-name: 2. Runs and calculates Pi correctly (40 points)
         setup-command: gcc -o pi_calculator pi_calculator.c -fopenmp -lm
         command: ./pi_calculator
-        expected-output: 'Calculated Pi\\s*=\\s*3\\.14159\\d*'
-        comparison: regex
+        expected-output: 'Calculated Pi\s*=\s*3\.14159\d*\nExecution time:.*'
+        comparison-method: regex
         timeout: 2
         max-score: 40
 
-    - name: Outputs execution time
+    - name: 3. Outputs execution time
       uses: classroom-resources/autograding-io-grader@v1
-      with: 
-        id: test3-time-output
-        name: 3. Outputs execution time (10 points)
-        command: cat pi_calculator.c 
-        expected-output: '#pragma omp parallel'
-        comparison: included
-        timeout: 1
+      id: execution-time
+      with:
+        test-name: 3. Outputs execution time (10 points)
+        command: cat ./pi_calculator.c 
+        expected-output: '.*#pragma\s+omp\s+parallel.*'
+        comparison-method: regex
+        timeout: 2
         max-score: 10
 
-    - name: Achieves speedup over serial version
+    - name: 4. Achieves speedup over serial version
       uses: classroom-resources/autograding-io-grader@v1
+      id: speedup-over-serial
       with: 
-        id: test4-speedup
-        name: 4. Achieves speedup over serial version (20 points)
-        setup-command: gcc -o pi_calculator pi_calculator.c -fopenmp -lm
-        command: PARALLEL_TIME=$(./pi_calculator | grep 'Execution time' | awk '{print $3}') && INITIAL_COMMIT=$(git rev-list --max-parents=0 HEAD) && git checkout $INITIAL_COMMIT -- pi_calculator.c > /dev/null 2>&1 && gcc -fopenmp -o pi_serial pi_calculator.c -lm && SERIAL_TIME=$(./pi_serial | grep 'Execution time' | awk '{print $3}') && SPEEDUP_CHECK=$(echo $PARALLEL_TIME \< $SERIAL_TIME | bc -l) && if [ $SPEEDUP_CHECK -eq 1 ]; then echo 'Success: Parallel version is faster.'; else echo 'Failure: Parallel version is not faster.'; fi
+        test-name: 4. Achieves speedup over serial version (20 points)
+        setup-command: chmod a+x ./test.sh
+        command: ./test.sh
         expected-output: 'Success: Parallel version is faster.'
-        comparison: exact
+        comparison-method: exact
         timeout: 3
         max-score: 20
+        
     - name: Autograding Reporter
       uses: classroom-resources/autograding-grading-reporter@v1
-      # For more information on this runner, see the documentation at https://github.com/classroom-resources/autograding-grading-reporter
-      # To output the results of the tests, you can use the
-      # autograding-grading-reporter action like this:
-      # env:
-      # ADDITION-TEST_RESULTS: "${{ steps.addition - test.outputs.result }}"
-      #     with:
-      #         runners: addition-test
+      env:
+        COMPILES-SUCCESSFULLY_RESULTS: "${{steps.compiles-successfully.outputs.result}}"
+        CALCULATES-PI-CORRECTLY_RESULTS: "${{steps.calculates-pi-correctly.outputs.result}}"
+        EXECUTION-TIME_RESULTS: "${{steps.execution-time.outputs.result}}"
+        SPEEDUP-OVER-SERIAL_RESULTS: "${{steps.speedup-over-serial.outputs.result}}"
+      with:
+        runners: compiles-successfully, calculates-pi-correctly, execution-time, speedup-over-serial
